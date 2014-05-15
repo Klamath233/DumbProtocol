@@ -1,0 +1,10 @@
+Source port: 16-bit
+Destination port: 16-bit
+Sequencenumber: 32-bit
+ACK number: 32-bit
+ACK + SYN + FIN: 16-bit
+checksum: 16-bit
+
+Total length of header: 16 bytes
+
+

@@ -1,7 +1,7 @@
+VPATH = sender
 
 
-
-Sender: sender.o sen_connection.o
+s: sender.o sen_connection.o
 	g++ -o $@ sender.o sen_connection.o
 
 sender.o: sender.cpp
