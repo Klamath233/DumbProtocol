@@ -11,6 +11,7 @@ public:
 	ssize_t recv(char *buf, int len);
 	void close();
 private:
+	bool _open;
 	int _laskACK;
 	int _nextSEQ;
 	// A TIMER
@@ -19,6 +20,6 @@ private:
 	struct sockaddr *_dst_addr;
 	vector<char> _send_buffer;
 	vector<char> _recv_buffer;
-	Segment *s_egm_head; // Link list head of segments.
+	Segment *_segm_head; // Link list head of segments.
 }
 #endif

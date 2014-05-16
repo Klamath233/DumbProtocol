@@ -7,6 +7,7 @@ public:
 	Segment(const Header *header, const char *data, size_t len);
 	const char *data(size_t &len);
 	const Header *header();
+	const char *segment();
 private:
 	Header *_header;
 	char *_data;

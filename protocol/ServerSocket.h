@@ -10,5 +10,6 @@ public:
 
 private:
 	struct sockaddr this_addr;
+	bool _open;
 };
 #endif
