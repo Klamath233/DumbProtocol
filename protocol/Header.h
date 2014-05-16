@@ -22,5 +22,5 @@ private:
 	bool _syn;
 	bool _rst;
 	bool _fin;
-}
+};
 #endif

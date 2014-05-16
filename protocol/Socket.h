@@ -21,5 +21,5 @@ private:
 	vector<char> _send_buffer;
 	vector<char> _recv_buffer;
 	Segment *_segm_head; // Link list head of segments.
-}
+};
 #endif

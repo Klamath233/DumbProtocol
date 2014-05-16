@@ -12,6 +12,6 @@ private:
 	Header *_header;
 	char *_data;
 	size_t _len;
-}
+};
 
 #endif
