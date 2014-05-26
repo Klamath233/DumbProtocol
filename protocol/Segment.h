@@ -1,6 +1,7 @@
 #ifndef __SEGMENT_H__
 #define __SEGMENT_H__
 #include <sys/types.h>
+#include "Header.h"
 
 class Segment {
 public:
@@ -9,8 +10,8 @@ public:
 	const Header *header();
 	const char *segment();
 private:
-	Header *_header;
-	char *_data;
+	const Header *_header;
+	const char *_data;
 	size_t _len;
 };
 
