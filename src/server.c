@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
-#include <event2/event.h>
+#include "../include/event2/event.h"
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <time.h>

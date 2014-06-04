@@ -1,6 +1,8 @@
+#define _BSD_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
@@ -9,7 +11,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
-#include <event2/event.h>
+#include "../include/event2/event.h"
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #define PACKET_SIZE 1024
 #define HEADER_SIZE 8
@@ -130,8 +134,8 @@ void run_client(char* hostname, short portno, char* fn, float lost_rate, float c
   printf("Client running.\n");
   printf("Server: %s:%hi.\n", hostname, portno);
   printf("File: %s\n", fn);
-  printf("Client side corruption rate: %f\n");
-  printf("Client side lost rate: %f\n");
+  printf("Client side corruption rate: %f\n", corr_rate);
+  printf("Client side lost rate: %f\n", lost_rate);
   #endif
 
   //inet_aton
