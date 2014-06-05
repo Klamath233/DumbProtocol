@@ -10,12 +10,16 @@
 #define PACKET_SIZE 1024
 #define HEADER_SIZE 8
 #define DATA_SIZE (PACKET_SIZE - HEADER_SIZE)
-#define TIMEOUT 1
+#define REG_TIMEOUT 1
+#define FIN_TIMEOUT 10
 
 #define WAITING_FOR_REQ 42
 #define WAITING_FOR_ACK 43
+#define WAITING_FOR_FIN 44
+#define FINAL_WAITING 45
 #define MODE_SEND 50
 #define MODE_RESEND 51
+#define MODE_ACKFIN 52
 
 struct server_states {
 	int state;
@@ -40,7 +44,7 @@ struct server_states {
 void run_server(short portno, int cwind, double lost_rate, double corr_rate);
 char *make_packet(int req, int fin, short len, int seq, const char data[DATA_SIZE]);
 void read_packet(int *req, int *fin, short *len, int *seq, char data[DATA_SIZE], const char packet[PACKET_SIZE]);
-struct timeval *get_timeout();
+struct timeval *get_timeout(int t);
 void bufferevt_handler(evutil_socket_t fd, short flag, void *arg);
 void timerevt_handler(evutil_socket_t fd, short flag, void *arg);
 void send_packets(struct server_states *ss, int mode);
@@ -140,9 +144,9 @@ void read_packet(int *req, int *fin, short *len, int *seq, char data[DATA_SIZE],
 	return;
 }
 
-struct timeval *get_timeout() {
+struct timeval *get_timeout(int t) {
 	struct timeval *ret = malloc(sizeof(struct timeval));
-	ret->tv_sec = TIMEOUT;
+	ret->tv_sec = t;
 	ret->tv_usec = 0;
 	return ret;
 }
@@ -154,6 +158,10 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
 		char fname[DATA_SIZE];
 		char pkt[PACKET_SIZE];
 		recvfrom(ss->socketfd, pkt, PACKET_SIZE, 0, (struct sockaddr *) &ss->c_addr, &ss->addr_len);
+		if (rngesus(ss->cprob)) {
+			printf("Received Corrupted Packet.\n");
+			return;
+		}
 		int req, fin, seq;
 		short len;
 		read_packet(&req, &fin, &len, &seq, fname, pkt);
@@ -161,6 +169,12 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
 			fprintf(stderr, "%s\n", "Error: not a request");
 			return;
 		}
+
+		if (fin) {
+			printf("Received premature FIN, ignore.");
+			return;
+		}
+
 		FILE *file = fopen(fname, "r");
 		if (!file) {
 			fprintf(stderr, "%s\n", "Error: file does not exist.");
@@ -193,18 +207,27 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
 
 		send_packets(ss, MODE_SEND);
 		ss->timerevt = event_new(ss->eb, -1, EV_PERSIST, timerevt_handler, ss);
-		evtimer_add(ss->timerevt, get_timeout());
+		evtimer_add(ss->timerevt, get_timeout(REG_TIMEOUT));
 		ss->state = WAITING_FOR_ACK;
 
 	} else if (ss->state == WAITING_FOR_ACK) {
 		char data[DATA_SIZE];
 		char pkt[PACKET_SIZE];
 		recvfrom(ss->socketfd, pkt, PACKET_SIZE, 0, (struct sockaddr *) &ss->c_addr, &ss->addr_len);
+		if (rngesus(ss->cprob)) {
+			printf("Received Corrupted Packet.\n");
+			return;
+		}
 		int req, fin, ack;
 		short len;
 		read_packet(&req, &fin, &len, &ack, data, pkt);
 		if (req) {
 			fprintf(stderr, "%s\n", "Error: not an ack");
+			return;
+		}
+
+		if (fin) {
+			printf("Received premature FIN, ignore.");
 			return;
 		}
 
@@ -217,15 +240,49 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
 					ss->last_ack = i;
 					evtimer_del(ss->timerevt);
 					send_packets(ss, MODE_SEND);
-					evtimer_add(ss->timerevt, get_timeout());
+					evtimer_add(ss->timerevt, get_timeout(REG_TIMEOUT));
 				} else {
 					ss->last_ack = i;
-					printf("Task complete, shut down.\n");
-					exit(0); // Receiver has acked the last packet.
+					printf("Task complete, shutting down.\n");
+					// Now, wait for FIN packet and remove the clock.
+					ss->state = WAITING_FOR_FIN;
+					evtimer_del(ss->timerevt);
 				}
 			}
 		}
 
+	} else if (ss->state == WAITING_FOR_FIN) {
+		char data[DATA_SIZE];
+		char pkt[PACKET_SIZE];
+		recvfrom(ss->socketfd, pkt, PACKET_SIZE, 0, (struct sockaddr *) &ss->c_addr, &ss->addr_len);
+		if (rngesus(ss->cprob)) {
+			printf("Received Corrupted Packet.\n");
+			return;
+		}
+		int req, fin, ack;
+		short len;
+		read_packet(&req, &fin, &len, &ack, data, pkt);
+		if (fin) {
+			send_packets(ss, MODE_ACKFIN);
+			evtimer_add(ss->timerevt, get_timeout(FIN_TIMEOUT));
+			ss->state = FINAL_WAITING;
+		}
+	} else if (ss->state == FINAL_WAITING) {
+		char data[DATA_SIZE];
+		char pkt[PACKET_SIZE];
+		recvfrom(ss->socketfd, pkt, PACKET_SIZE, 0, (struct sockaddr *) &ss->c_addr, &ss->addr_len);
+		if (rngesus(ss->cprob)) {
+			printf("Received Corrupted Packet.\n");
+			return;
+		}
+		int req, fin, ack;
+		short len;
+		read_packet(&req, &fin, &len, &ack, data, pkt);
+		if (fin) {
+			evtimer_del(ss->timerevt);
+			send_packets(ss, MODE_ACKFIN);
+			evtimer_add(ss->timerevt, get_timeout(FIN_TIMEOUT));
+		}
 	}
 
 	return;
@@ -233,7 +290,13 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
 
 void timerevt_handler(evutil_socket_t fd, short flag, void *arg) {
 	struct server_states *ss = (struct server_states *) arg;
-	send_packets(ss, MODE_RESEND);
+
+	if (ss->state == WAITING_FOR_ACK) {
+		send_packets(ss, MODE_RESEND);
+	} else if (ss->state == FINAL_WAITING) {
+		printf("Timeout, shutdown.\n");
+		exit(0);
+	}
 
 	return;
 }
@@ -259,6 +322,17 @@ void send_packets(struct server_states *ss, int mode) {
 				sendto(ss->socketfd, ss->packets[i], PACKET_SIZE, 0, (struct sockaddr *) &ss->c_addr, ss->addr_len);
 				printf("Resending packet %d of %d.\n", i + 1, ss->numpackets);
 			}
+		}
+	} else if (mode == MODE_ACKFIN) {
+		printf("!!!!!!!\n");
+		if (rngesus(ss->lprob)) {
+			printf("Acking the FIN, but it is lost.\n");
+		} else {
+			char pkt[PACKET_SIZE];
+			bzero(pkt, PACKET_SIZE);
+			pkt[0] = 1;
+			printf("Acking the FIN.\n");
+			sendto(ss->socketfd, pkt, PACKET_SIZE, 0, (struct sockaddr *) &ss->c_addr, ss->addr_len);
 		}
 	}
 	return;

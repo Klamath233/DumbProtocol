@@ -484,7 +484,7 @@ configure:12348: checking for zlib.h
 configure:12348: result: yes
 configure:12364: checking for library containing inflateEnd
 configure:12395: gcc -o conftest -g -O2 -Wall -fno-strict-aliasing   conftest.c  >&5
-/tmp/ccGrh06G.o: In function `main':
+/tmp/cckYPR2U.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:36: undefined reference to `inflateEnd'
 collect2: error: ld returned 1 exit status
 configure:12395: $? = 1
@@ -638,7 +638,7 @@ configure:12449: checking for openssl/bio.h
 configure:12449: result: no
 configure:12465: checking for library containing SSL_new
 configure:12496: gcc -o conftest -g -O2 -Wall -fno-strict-aliasing   conftest.c  >&5
-/tmp/ccdsI6a4.o: In function `main':
+/tmp/ccAB8xEa.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:37: undefined reference to `SSL_new'
 collect2: error: ld returned 1 exit status
 configure:12496: $? = 1
@@ -1619,7 +1619,7 @@ configure:13138: $? = 0
 configure:13138: result: yes
 configure:13138: checking for strlcpy
 configure:13138: gcc -o conftest -g -O2 -Wall -fno-strict-aliasing   conftest.c  >&5
-/tmp/ccU2b5y7.o: In function `main':
+/tmp/cchPKxen.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:102: undefined reference to `strlcpy'
 collect2: error: ld returned 1 exit status
 configure:13138: $? = 1
@@ -1776,7 +1776,7 @@ configure:13138: $? = 0
 configure:13138: result: yes
 configure:13138: checking for arc4random
 configure:13138: gcc -o conftest -g -O2 -Wall -fno-strict-aliasing   conftest.c  >&5
-/tmp/ccKSZCv3.o: In function `main':
+/tmp/ccOWHJXp.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:113: undefined reference to `arc4random'
 collect2: error: ld returned 1 exit status
 configure:13138: $? = 1
@@ -1900,7 +1900,7 @@ configure: failed program was:
 configure:13138: result: no
 configure:13138: checking for arc4random_buf
 configure:13138: gcc -o conftest -g -O2 -Wall -fno-strict-aliasing   conftest.c  >&5
-/tmp/cc0P0VY8.o: In function `main':
+/tmp/ccwQKLYv.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:113: undefined reference to `arc4random_buf'
 collect2: error: ld returned 1 exit status
 configure:13138: $? = 1
@@ -2024,7 +2024,7 @@ configure: failed program was:
 configure:13138: result: no
 configure:13138: checking for issetugid
 configure:13138: gcc -o conftest -g -O2 -Wall -fno-strict-aliasing   conftest.c  >&5
-/tmp/ccqhq1Zc.o: In function `main':
+/tmp/ccSKouyE.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:113: undefined reference to `issetugid'
 collect2: error: ld returned 1 exit status
 configure:13138: $? = 1
@@ -2208,7 +2208,7 @@ configure:13557: $? = 0
 configure:13557: result: yes
 configure:13641: checking for port_create
 configure:13641: gcc -o conftest -g -O2 -Wall -fno-strict-aliasing   conftest.c  >&5
-/tmp/ccms5I6c.o: In function `main':
+/tmp/cce0p2uD.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:128: undefined reference to `port_create'
 collect2: error: ld returned 1 exit status
 configure:13641: $? = 1
@@ -5430,7 +5430,7 @@ conftest.c:120:22: warning: null argument where non-null required (argument 3) [
 conftest.c:118:27: warning: 'th' is used uninitialized in this function [-Wuninitialized]
  pthread_t th; pthread_join(th, 0);
                            ^
-/tmp/ccbcLAO6.o: In function `main':
+/tmp/cc5I9Ehu.o: In function `main':
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:118: undefined reference to `pthread_join'
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:119: undefined reference to `__pthread_register_cancel'
 /home/hanxi1994/workspace/DumbProtocol/src/libevent/conftest.c:120: undefined reference to `pthread_create'

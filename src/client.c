@@ -14,14 +14,16 @@
 #include "../include/event2/event.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 #define PACKET_SIZE 1024
 #define HEADER_SIZE 8
 #define DATA_SIZE PACKET_SIZE - HEADER_SIZE
-#define TIMEOUT 1
+#define REG_TIMEOUT 1
+#define FIN_TIMEOUT 10
 
 #define WAITING_FOR_DATA 44
-
+#define FINAL_WAITING 45
 /*
 
 REQ: 1. request file
@@ -85,10 +87,11 @@ int readSeq(char* pkt)
   return ntohl(*(int*)(pkt+4));
 }
 
-struct timeval *get_timeout();
+struct timeval *get_timeout(int t);
 void read_data(char data[DATA_SIZE], const char packet[PACKET_SIZE]);
 void bufferevt_handler(evutil_socket_t fd, short flag, void *arg);
 void timerevt_handler(evutil_socket_t fd, short flag, void *arg);
+int rngesus(float rate);
 // -------------------------------
 
 
@@ -108,7 +111,7 @@ int main(int argc, char **argv)
   float lost_rate = atof(argv[4]);
   float corr_rate = atof(argv[5]);
 
-
+  srand(time(0));
   if(portno < 0) goto bad_argument;
   if(lost_rate < 0 || lost_rate > 1) goto bad_argument;
   if(corr_rate < 0 || corr_rate > 1) goto bad_argument;
@@ -183,11 +186,15 @@ void run_client(char* hostname, short portno, char* fn, float lost_rate, float c
   #endif
 
   fseek(file, 0L, SEEK_SET);
+  if (rngesus(lost_rate)) {
+    printf("Client request will lost!\n");
+  } else {
+    n = sendto(sockfd, send_buf, PACKET_SIZE, 0, (struct sockaddr *) &server_addr, addr_len);
+      #ifdef LOG
+      printf("Request sent.\n");
+      #endif
+  }
 
-  n = sendto(sockfd, send_buf, PACKET_SIZE, 0, (struct sockaddr *) &server_addr, addr_len);
-  #ifdef LOG
-  printf("Request sent.\n");
-  #endif
   cs->state = WAITING_FOR_DATA;
   cs->socketfd = sockfd;
   cs->s_addr = server_addr;
@@ -200,7 +207,7 @@ void run_client(char* hostname, short portno, char* fn, float lost_rate, float c
   cs->timerevt = event_new(cs->eb, -1, EV_PERSIST, timerevt_handler, cs);
   cs->bufferevt = event_new(cs->eb, cs->socketfd, EV_READ|EV_PERSIST, bufferevt_handler, cs);
   cs->request = send_buf;
-  evtimer_add(cs->timerevt, get_timeout());
+  evtimer_add(cs->timerevt, get_timeout(REG_TIMEOUT));
   event_add(cs->bufferevt, NULL);
   event_base_dispatch(cs->eb);
 
@@ -251,13 +258,6 @@ void make_file_request(char* pkt, int seq, char* filename)
   strcpy(pkt + 8, filename);
 }
 
-struct timeval *get_timeout() {
-  struct timeval *ret = malloc(sizeof(struct timeval));
-  ret->tv_sec = TIMEOUT;
-  ret->tv_usec = 0;
-  return ret;
-}
-
 void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
   struct client_states *cs = (struct client_states *) arg;
 
@@ -270,6 +270,10 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
     bzero(databuf, DATA_SIZE);
 
     recvfrom(cs->socketfd, recvbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, &cs->addr_len);
+    if (rngesus(cs->cprob)) {
+      printf("Received Corrupted Packet.\n");
+      return;
+    }
 
     if (readSeq(recvbuf) > cs->seq_expected) {
       // Out of order
@@ -279,9 +283,14 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
       evtimer_del(cs->timerevt);
       event_free(cs->timerevt);
       make_ACK(sendbuf, cs->seq_expected);
-      sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+      if (rngesus(cs->lprob)) {
+        printf("Reacking for SEQ: %d, but it will lost.\n", cs->seq_expected);
+      } else { 
+        printf("Reacking for SEQ: %d.\n", cs->seq_expected);
+        sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+      }
       cs->timerevt = event_new(cs->eb, -1, EV_PERSIST, timerevt_handler, cs);
-      evtimer_add(cs->timerevt, get_timeout());
+      evtimer_add(cs->timerevt, get_timeout(REG_TIMEOUT));
       return;
     } else if (readSeq(recvbuf) < cs->seq_expected) {
       #ifdef LOG
@@ -294,7 +303,6 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
     printf("Expecting SEQ: %d. Reiceived SEQ: %d. OK.\n", cs->seq_expected, readSeq(recvbuf));
     #endif
     evtimer_del(cs->timerevt);
-    event_free(cs->timerevt);
     read_data(databuf, recvbuf);
 
     int len = readLen(recvbuf);
@@ -302,14 +310,42 @@ void bufferevt_handler(evutil_socket_t fd, short flag, void *arg) {
     cs->seq_expected += len;
 
     make_ACK(sendbuf, cs->seq_expected);
-    sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+    if (rngesus(cs->lprob)) {
+        printf("Acking for SEQ: %d, but it will lost.\n", cs->seq_expected);
+      } else { 
+        printf("Acking for SEQ: %d.\n", cs->seq_expected);
+        sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+      }
 
     if (readFin(recvbuf) == 1) {
+      sendbuf[1] = 1;
+      if (rngesus(cs->lprob)) {
+        printf("Sending FIN to server, but it will lost.\n");
+      } else { 
+        printf("Sending FIN to server.\n");
+        sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+      }
       fclose(cs->file);
+      cs->state = FINAL_WAITING;
+    }
+
+    evtimer_add(cs->timerevt, get_timeout(REG_TIMEOUT));
+  } else if (cs->state == FINAL_WAITING) {
+    char sendbuf[PACKET_SIZE];
+    char recvbuf[PACKET_SIZE];
+    char databuf[DATA_SIZE];
+    bzero(recvbuf, PACKET_SIZE);
+    bzero(sendbuf, PACKET_SIZE);
+    bzero(databuf, DATA_SIZE);
+
+    recvfrom(cs->socketfd, recvbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, &cs->addr_len);
+    if (rngesus(cs->cprob)) {
+      printf("Received Corrupted Packet.\n");
+      return;
+    }
+    if (readReq(recvbuf) == 1) {
       exit(0);
     }
-    cs->timerevt = event_new(cs->eb, -1, EV_PERSIST, timerevt_handler, cs);
-    evtimer_add(cs->timerevt, get_timeout());
   }
 }
 
@@ -319,11 +355,53 @@ void timerevt_handler(evutil_socket_t fd, short flag, void *arg) {
   #ifdef LOG
   printf("Expecting SEQ: %d. Timeout\n", cs->seq_expected);
   #endif
+  if (cs->seq_expected == 0) {
+    // Resend the request and return.
+    if (rngesus(cs->lprob)) {
+        printf("Resending the request to server, but it will lost.\n");
+      } else { 
+        printf("Resending the request to server.\n");
+        sendto(cs->socketfd, cs->request, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+      }
+      return;
+  }
   make_ACK(sendbuf, cs->seq_expected);
-  sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+  if (rngesus(cs->lprob)) {
+        printf("Reacking for SEQ: %d, but it will lost.\n", cs->seq_expected);
+      } else { 
+        printf("Reacking for SEQ: %d.\n", cs->seq_expected);
+        sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+      }
+  if (cs->state == FINAL_WAITING) {
+    sendbuf[1] = 1;
+    if (rngesus(cs->lprob)) {
+        printf("Resending FIN to server, but it will lost.\n");
+      } else { 
+        printf("Resending FIN to server\n");
+        sendto(cs->socketfd, sendbuf, PACKET_SIZE, 0, (struct sockaddr *) &cs->s_addr, cs->addr_len);
+      }
+  }
 }
 
 void read_data(char data[DATA_SIZE], const char packet[PACKET_SIZE]) {
   memcpy(data, packet + 8, DATA_SIZE);
   return;
+}
+
+struct timeval *get_timeout(int t) {
+  struct timeval *ret = malloc(sizeof(struct timeval));
+  ret->tv_sec = t;
+  ret->tv_usec = 0;
+  return ret;
+}
+
+int rngesus(float rate) {
+  int hitnum = (int) (rate * 100);
+  int result = rand() % 100;
+  // printf("hitnum: %d, result %d.\n", hitnum, result);
+  if (result < hitnum) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
