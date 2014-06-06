@@ -13,6 +13,9 @@ Run:
     ./server <portNumber> <windowSize> <lostRate> <corruptionRate>
     ./client <serverIP> <portNumber> <fileName> <lostRate> <corruptionRate>   
 
+	The executables will be generated in server/ and client/ folder,
+	respectively.
+
 ##Developer
 Xi Han 
 
