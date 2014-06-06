@@ -17,8 +17,8 @@ Run:
 	respectively.
 
 ##Developer
-Xi Han 
+Xi Han 504136747 <xihan94@ucla.edu>
 
-Runhang Li
+Runhang Li 204134617 <marklrh@gmail.com>
 
 
